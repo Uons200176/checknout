@@ -1,0 +1,40 @@
+/**
+ * GET /api/payments/card/status?orderId=<uuid>
+ *
+ * Browser polling for card-crypto orders. Same UUID-keyed anon RPC as the crypto
+ * status route. Status is driven strictly by the PayGate IPN webhook.
+ */
+import { NextRequest, NextResponse } from "next/server";
+import { getOrderPublic } from "@/app/lib/orders.rpc";
+
+export async function GET(req: NextRequest) {
+  try {
+    const orderId = req.nextUrl.searchParams.get("orderId");
+    if (!orderId) return NextResponse.json({ error: "Missing orderId" }, { status: 400 });
+
+    const order = await getOrderPublic(orderId);
+    if (!order || order.payment_method !== "card-crypto") {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      orderId: order.id,
+      orderNumber: order.order_number,
+      status: order.status,
+      serverNow: order.server_now,
+      sessionExpired: order.session_expired,
+      reconciliationPending: order.reconciliation_pending,
+      reconciliationUntil: order.reconciliation_until,
+      invoiceId: order.invoice_id ?? null,
+      planName: order.plan_name,
+      planPrice: order.plan_price,
+      connections: order.connections,
+      paymentMethod: order.payment_method,
+      createdAt: order.created_at,
+      sessionExpiresAt: order.session_expires_at || null,
+    });
+  } catch (err) {
+    console.error("Card status error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
